@@ -1,0 +1,18 @@
+[2026-06-12T14:17:42.762+0000] {local_task_job_runner.py:120} INFO - ::group::Pre task execution logs
+[2026-06-12T14:17:42.805+0000] {taskinstance.py:2076} INFO - Dependencies all met for dep_context=non-requeueable deps ti=<TaskInstance: loan_default_ml_pipeline.build_datamart scheduled__2024-11-01T00:00:00+00:00 [queued]>
+[2026-06-12T14:17:42.816+0000] {taskinstance.py:2076} INFO - Dependencies all met for dep_context=requeueable deps ti=<TaskInstance: loan_default_ml_pipeline.build_datamart scheduled__2024-11-01T00:00:00+00:00 [queued]>
+[2026-06-12T14:17:42.817+0000] {taskinstance.py:2306} INFO - Starting attempt 1 of 1
+[2026-06-12T14:17:42.839+0000] {taskinstance.py:2330} INFO - Executing <Task(PythonOperator): build_datamart> on 2024-11-01 00:00:00+00:00
+[2026-06-12T14:17:42.846+0000] {standard_task_runner.py:64} INFO - Started process 4240 to run task
+[2026-06-12T14:17:42.850+0000] {standard_task_runner.py:90} INFO - Running: ['***', 'tasks', 'run', 'loan_default_ml_pipeline', 'build_datamart', 'scheduled__2024-11-01T00:00:00+00:00', '--job-id', '101', '--raw', '--subdir', 'DAGS_FOLDER/ml_pipeline_dag.py', '--cfg-path', '/tmp/tmpgtccui2e']
+[2026-06-12T14:17:42.853+0000] {standard_task_runner.py:91} INFO - Job 101: Subtask build_datamart
+[2026-06-12T14:17:42.920+0000] {task_command.py:426} INFO - Running <TaskInstance: loan_default_ml_pipeline.build_datamart scheduled__2024-11-01T00:00:00+00:00 [running]> on host f330f4bbcab3
+[2026-06-12T14:17:43.200+0000] {taskinstance.py:2648} INFO - Exporting env vars: AIRFLOW_CTX_DAG_OWNER='mle' AIRFLOW_CTX_DAG_ID='loan_default_ml_pipeline' AIRFLOW_CTX_TASK_ID='build_datamart' AIRFLOW_CTX_EXECUTION_DATE='2024-11-01T00:00:00+00:00' AIRFLOW_CTX_TRY_NUMBER='1' AIRFLOW_CTX_DAG_RUN_ID='scheduled__2024-11-01T00:00:00+00:00'
+[2026-06-12T14:17:43.202+0000] {taskinstance.py:430} INFO - ::endgroup::
+[2026-06-12T14:17:43.251+0000] {logging_mixin.py:188} INFO - Datamart gold stores already built - skipping rebuild.
+[2026-06-12T14:17:43.252+0000] {python.py:237} INFO - Done. Returned value was: None
+[2026-06-12T14:17:43.254+0000] {taskinstance.py:441} INFO - ::group::Post task execution logs
+[2026-06-12T14:17:43.263+0000] {taskinstance.py:1206} INFO - Marking task as SUCCESS. dag_id=loan_default_ml_pipeline, task_id=build_datamart, run_id=scheduled__2024-11-01T00:00:00+00:00, execution_date=20241101T000000, start_date=20260612T141742, end_date=20260612T141743
+[2026-06-12T14:17:43.306+0000] {local_task_job_runner.py:243} INFO - Task exited with return code 0
+[2026-06-12T14:17:43.342+0000] {taskinstance.py:3503} INFO - 1 downstream tasks scheduled from follow-on schedule check
+[2026-06-12T14:17:43.349+0000] {local_task_job_runner.py:222} INFO - ::endgroup::

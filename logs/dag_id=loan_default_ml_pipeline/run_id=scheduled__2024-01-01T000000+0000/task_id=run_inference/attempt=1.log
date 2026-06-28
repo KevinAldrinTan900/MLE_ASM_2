@@ -1,0 +1,19 @@
+[2026-06-12T14:15:58.127+0000] {local_task_job_runner.py:120} INFO - ::group::Pre task execution logs
+[2026-06-12T14:15:58.175+0000] {taskinstance.py:2076} INFO - Dependencies all met for dep_context=non-requeueable deps ti=<TaskInstance: loan_default_ml_pipeline.run_inference scheduled__2024-01-01T00:00:00+00:00 [queued]>
+[2026-06-12T14:15:58.189+0000] {taskinstance.py:2076} INFO - Dependencies all met for dep_context=requeueable deps ti=<TaskInstance: loan_default_ml_pipeline.run_inference scheduled__2024-01-01T00:00:00+00:00 [queued]>
+[2026-06-12T14:15:58.191+0000] {taskinstance.py:2306} INFO - Starting attempt 1 of 1
+[2026-06-12T14:15:58.213+0000] {taskinstance.py:2330} INFO - Executing <Task(PythonOperator): run_inference> on 2024-01-01 00:00:00+00:00
+[2026-06-12T14:15:58.221+0000] {standard_task_runner.py:64} INFO - Started process 3248 to run task
+[2026-06-12T14:15:58.226+0000] {standard_task_runner.py:90} INFO - Running: ['***', 'tasks', 'run', 'loan_default_ml_pipeline', 'run_inference', 'scheduled__2024-01-01T00:00:00+00:00', '--job-id', '54', '--raw', '--subdir', 'DAGS_FOLDER/ml_pipeline_dag.py', '--cfg-path', '/tmp/tmphl2q23ie']
+[2026-06-12T14:15:58.230+0000] {standard_task_runner.py:91} INFO - Job 54: Subtask run_inference
+[2026-06-12T14:15:58.306+0000] {task_command.py:426} INFO - Running <TaskInstance: loan_default_ml_pipeline.run_inference scheduled__2024-01-01T00:00:00+00:00 [running]> on host f330f4bbcab3
+[2026-06-12T14:15:58.648+0000] {taskinstance.py:2648} INFO - Exporting env vars: AIRFLOW_CTX_DAG_OWNER='mle' AIRFLOW_CTX_DAG_ID='loan_default_ml_pipeline' AIRFLOW_CTX_TASK_ID='run_inference' AIRFLOW_CTX_EXECUTION_DATE='2024-01-01T00:00:00+00:00' AIRFLOW_CTX_TRY_NUMBER='1' AIRFLOW_CTX_DAG_RUN_ID='scheduled__2024-01-01T00:00:00+00:00'
+[2026-06-12T14:15:58.649+0000] {taskinstance.py:430} INFO - ::endgroup::
+[2026-06-12T14:16:00.509+0000] {logging_mixin.py:188} INFO - Scoring snapshot 2024-01-01 with credit_model_2024-01-01
+[2026-06-12T14:16:01.566+0000] {logging_mixin.py:188} INFO - Wrote 485 predictions to /opt/***/datamart/gold/model_predictions/snapshot_date=2024-01-01
+[2026-06-12T14:16:01.569+0000] {python.py:237} INFO - Done. Returned value was: None
+[2026-06-12T14:16:01.570+0000] {taskinstance.py:441} INFO - ::group::Post task execution logs
+[2026-06-12T14:16:01.590+0000] {taskinstance.py:1206} INFO - Marking task as SUCCESS. dag_id=loan_default_ml_pipeline, task_id=run_inference, run_id=scheduled__2024-01-01T00:00:00+00:00, execution_date=20240101T000000, start_date=20260612T141558, end_date=20260612T141601
+[2026-06-12T14:16:01.655+0000] {local_task_job_runner.py:243} INFO - Task exited with return code 0
+[2026-06-12T14:16:01.928+0000] {taskinstance.py:3503} INFO - 1 downstream tasks scheduled from follow-on schedule check
+[2026-06-12T14:16:01.936+0000] {local_task_job_runner.py:222} INFO - ::endgroup::

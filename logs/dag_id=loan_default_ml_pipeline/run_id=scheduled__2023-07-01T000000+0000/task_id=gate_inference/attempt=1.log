@@ -1,0 +1,21 @@
+[2026-06-12T14:14:46.788+0000] {local_task_job_runner.py:120} INFO - ::group::Pre task execution logs
+[2026-06-12T14:14:46.851+0000] {taskinstance.py:2076} INFO - Dependencies all met for dep_context=non-requeueable deps ti=<TaskInstance: loan_default_ml_pipeline.gate_inference scheduled__2023-07-01T00:00:00+00:00 [queued]>
+[2026-06-12T14:14:46.869+0000] {taskinstance.py:2076} INFO - Dependencies all met for dep_context=requeueable deps ti=<TaskInstance: loan_default_ml_pipeline.gate_inference scheduled__2023-07-01T00:00:00+00:00 [queued]>
+[2026-06-12T14:14:46.871+0000] {taskinstance.py:2306} INFO - Starting attempt 1 of 1
+[2026-06-12T14:14:46.900+0000] {taskinstance.py:2330} INFO - Executing <Task(ShortCircuitOperator): gate_inference> on 2023-07-01 00:00:00+00:00
+[2026-06-12T14:14:46.908+0000] {standard_task_runner.py:64} INFO - Started process 3011 to run task
+[2026-06-12T14:14:46.914+0000] {standard_task_runner.py:90} INFO - Running: ['***', 'tasks', 'run', 'loan_default_ml_pipeline', 'gate_inference', 'scheduled__2023-07-01T00:00:00+00:00', '--job-id', '28', '--raw', '--subdir', 'DAGS_FOLDER/ml_pipeline_dag.py', '--cfg-path', '/tmp/tmpn_3jsyj5']
+[2026-06-12T14:14:46.918+0000] {standard_task_runner.py:91} INFO - Job 28: Subtask gate_inference
+[2026-06-12T14:14:46.997+0000] {task_command.py:426} INFO - Running <TaskInstance: loan_default_ml_pipeline.gate_inference scheduled__2023-07-01T00:00:00+00:00 [running]> on host f330f4bbcab3
+[2026-06-12T14:14:47.316+0000] {taskinstance.py:2648} INFO - Exporting env vars: AIRFLOW_CTX_DAG_OWNER='mle' AIRFLOW_CTX_DAG_ID='loan_default_ml_pipeline' AIRFLOW_CTX_TASK_ID='gate_inference' AIRFLOW_CTX_EXECUTION_DATE='2023-07-01T00:00:00+00:00' AIRFLOW_CTX_TRY_NUMBER='1' AIRFLOW_CTX_DAG_RUN_ID='scheduled__2023-07-01T00:00:00+00:00'
+[2026-06-12T14:14:47.317+0000] {taskinstance.py:430} INFO - ::endgroup::
+[2026-06-12T14:14:47.332+0000] {baseoperator.py:400} WARNING - ShortCircuitOperator.execute cannot be called outside TaskInstance!
+[2026-06-12T14:14:47.334+0000] {python.py:237} INFO - Done. Returned value was: False
+[2026-06-12T14:14:47.336+0000] {python.py:304} INFO - Condition result is False
+[2026-06-12T14:14:47.337+0000] {python.py:331} INFO - Skipping downstream tasks
+[2026-06-12T14:14:47.368+0000] {python.py:339} INFO - Done.
+[2026-06-12T14:14:47.369+0000] {taskinstance.py:441} INFO - ::group::Post task execution logs
+[2026-06-12T14:14:47.394+0000] {taskinstance.py:1206} INFO - Marking task as SUCCESS. dag_id=loan_default_ml_pipeline, task_id=gate_inference, run_id=scheduled__2023-07-01T00:00:00+00:00, execution_date=20230701T000000, start_date=20260612T141446, end_date=20260612T141447
+[2026-06-12T14:14:47.448+0000] {local_task_job_runner.py:243} INFO - Task exited with return code 0
+[2026-06-12T14:14:47.483+0000] {taskinstance.py:3503} INFO - 0 downstream tasks scheduled from follow-on schedule check
+[2026-06-12T14:14:47.495+0000] {local_task_job_runner.py:222} INFO - ::endgroup::

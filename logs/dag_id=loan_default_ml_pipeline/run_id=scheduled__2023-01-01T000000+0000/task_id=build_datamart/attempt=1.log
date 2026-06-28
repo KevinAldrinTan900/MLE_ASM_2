@@ -1,0 +1,39 @@
+[2026-06-12T14:09:31.466+0000] {local_task_job_runner.py:120} INFO - ::group::Pre task execution logs
+[2026-06-12T14:09:31.513+0000] {taskinstance.py:2076} INFO - Dependencies all met for dep_context=non-requeueable deps ti=<TaskInstance: loan_default_ml_pipeline.build_datamart scheduled__2023-01-01T00:00:00+00:00 [queued]>
+[2026-06-12T14:09:31.522+0000] {taskinstance.py:2076} INFO - Dependencies all met for dep_context=requeueable deps ti=<TaskInstance: loan_default_ml_pipeline.build_datamart scheduled__2023-01-01T00:00:00+00:00 [queued]>
+[2026-06-12T14:09:31.524+0000] {taskinstance.py:2306} INFO - Starting attempt 1 of 1
+[2026-06-12T14:09:31.543+0000] {taskinstance.py:2330} INFO - Executing <Task(PythonOperator): build_datamart> on 2023-01-01 00:00:00+00:00
+[2026-06-12T14:09:31.549+0000] {standard_task_runner.py:64} INFO - Started process 271 to run task
+[2026-06-12T14:09:31.553+0000] {standard_task_runner.py:90} INFO - Running: ['***', 'tasks', 'run', 'loan_default_ml_pipeline', 'build_datamart', 'scheduled__2023-01-01T00:00:00+00:00', '--job-id', '2', '--raw', '--subdir', 'DAGS_FOLDER/ml_pipeline_dag.py', '--cfg-path', '/tmp/tmp8efftsh5']
+[2026-06-12T14:09:31.556+0000] {standard_task_runner.py:91} INFO - Job 2: Subtask build_datamart
+[2026-06-12T14:09:31.628+0000] {task_command.py:426} INFO - Running <TaskInstance: loan_default_ml_pipeline.build_datamart scheduled__2023-01-01T00:00:00+00:00 [running]> on host f330f4bbcab3
+[2026-06-12T14:09:31.996+0000] {taskinstance.py:2648} INFO - Exporting env vars: AIRFLOW_CTX_DAG_OWNER='mle' AIRFLOW_CTX_DAG_ID='loan_default_ml_pipeline' AIRFLOW_CTX_TASK_ID='build_datamart' AIRFLOW_CTX_EXECUTION_DATE='2023-01-01T00:00:00+00:00' AIRFLOW_CTX_TRY_NUMBER='1' AIRFLOW_CTX_DAG_RUN_ID='scheduled__2023-01-01T00:00:00+00:00'
+[2026-06-12T14:09:31.997+0000] {taskinstance.py:430} INFO - ::endgroup::
+[2026-06-12T14:09:41.670+0000] {logging_mixin.py:188} INFO - Ingesting clickstream from data/feature_clickstream.csv
+[2026-06-12T14:10:05.321+0000] {logging_mixin.py:188} INFO - ✅Saved to bronze/clickstream
+[2026-06-12T14:10:05.323+0000] {logging_mixin.py:188} INFO - Ingesting attributes from data/features_attributes.csv
+[2026-06-12T14:10:08.622+0000] {logging_mixin.py:188} INFO - ✅Saved to bronze/attributes
+[2026-06-12T14:10:08.623+0000] {logging_mixin.py:188} INFO - Ingesting financials from data/features_financials.csv
+[2026-06-12T14:10:26.166+0000] {logging_mixin.py:188} INFO - ✅Saved to bronze/financials
+[2026-06-12T14:10:26.168+0000] {logging_mixin.py:188} INFO - Ingesting loans from data/lms_loan_daily.csv
+[2026-06-12T14:10:30.591+0000] {logging_mixin.py:188} INFO - ✅Saved to bronze/loans
+[2026-06-12T14:10:30.593+0000] {logging_mixin.py:188} INFO - Bronze complete
+[2026-06-12T14:10:30.594+0000] {logging_mixin.py:188} INFO - Cleaning financials…
+[2026-06-12T14:10:49.509+0000] {logging_mixin.py:188} INFO - ✅  Saved Silver → financials_clean
+[2026-06-12T14:10:49.513+0000] {logging_mixin.py:188} INFO - Cleaning attributes…
+[2026-06-12T14:10:52.262+0000] {logging_mixin.py:188} INFO - ✅  Saved Silver → attributes_clean
+[2026-06-12T14:10:52.264+0000] {logging_mixin.py:188} INFO - Cleaning clickstream…
+[2026-06-12T14:11:11.971+0000] {logging_mixin.py:188} INFO - ✅  Saved Silver → clickstream_clean
+[2026-06-12T14:11:11.982+0000] {logging_mixin.py:188} INFO - Cleaning loans…
+[2026-06-12T14:11:56.106+0000] {logging_mixin.py:188} INFO - ✅  Saved Silver → loans_clean
+[2026-06-12T14:11:56.108+0000] {logging_mixin.py:188} INFO - Silver complete
+[2026-06-12T14:11:56.109+0000] {logging_mixin.py:188} INFO - 📌 Building label store…
+[2026-06-12T14:12:09.974+0000] {logging_mixin.py:188} INFO - ✅ Saved label store to datamart/gold/label_store
+[2026-06-12T14:12:09.976+0000] {logging_mixin.py:188} INFO - 📌 Building unified gold-ML feature store…
+[2026-06-12T14:13:48.536+0000] {logging_mixin.py:188} INFO - Gold complete
+[2026-06-12T14:13:49.298+0000] {python.py:237} INFO - Done. Returned value was: None
+[2026-06-12T14:13:49.353+0000] {taskinstance.py:441} INFO - ::group::Post task execution logs
+[2026-06-12T14:13:49.618+0000] {taskinstance.py:1206} INFO - Marking task as SUCCESS. dag_id=loan_default_ml_pipeline, task_id=build_datamart, run_id=scheduled__2023-01-01T00:00:00+00:00, execution_date=20230101T000000, start_date=20260612T140931, end_date=20260612T141349
+[2026-06-12T14:13:49.841+0000] {local_task_job_runner.py:243} INFO - Task exited with return code 0
+[2026-06-12T14:13:52.947+0000] {taskinstance.py:3503} INFO - 1 downstream tasks scheduled from follow-on schedule check
+[2026-06-12T14:13:52.953+0000] {local_task_job_runner.py:222} INFO - ::endgroup::
