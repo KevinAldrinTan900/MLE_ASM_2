@@ -9,9 +9,9 @@ from pyspark.sql.types import (
 
 # CLEAN FINANCIALS
 
-def clean_financials_table(spark):
-    print("Cleaning financials…")
-    df = spark.read.parquet("datamart/bronze/financials")
+def clean_financials_table(spark, ds):
+    print(f"Cleaning financials snapshot {ds}…")
+    df = spark.read.parquet("datamart/bronze/financials").filter(col("snapshot_date") == ds)
     df = df.replace(["_", "NA", "na", "N/A"], None)
 
     # strip non-numeric noise
@@ -50,16 +50,17 @@ def clean_financials_table(spark):
                         expr("transform(split(Type_of_Loan, ', |, and '), x -> lower(trim(x)))")))
 
     df = df.filter(col("Customer_ID").isNotNull() & col("snapshot_date").isNotNull())
-    df.write.mode("overwrite").parquet("datamart/silver/financials_clean")
-    print("✅  Saved Silver → financials_clean")
+    df.write.partitionBy("snapshot_date").mode("overwrite").parquet("datamart/silver/financials_clean")
+    print(f"✅  Saved Silver → financials_clean snapshot {ds}")
     return df
 
 
 # 2.  CLEAN ATTRIBUTES
 
-def clean_attributes_table(spark):
-    print("Cleaning attributes…")
+def clean_attributes_table(spark, ds):
+    print(f"Cleaning attributes snapshot {ds}…")
     df = spark.read.parquet("datamart/bronze/attributes") \
+           .filter(col("snapshot_date") == ds) \
            .replace(["_", "NA", "na", "N/A", "_______"], None)
 
     # Age
@@ -71,16 +72,17 @@ def clean_attributes_table(spark):
                        when(col("SSN").rlike("^\\d{3}-\\d{2}-\\d{4}$"), col("SSN")))
 
     df = df.filter(col("Customer_ID").isNotNull() & col("snapshot_date").isNotNull())
-    df.write.mode("overwrite").parquet("datamart/silver/attributes_clean")
-    print("✅  Saved Silver → attributes_clean")
+    df.write.partitionBy("snapshot_date").mode("overwrite").parquet("datamart/silver/attributes_clean")
+    print(f"✅  Saved Silver → attributes_clean snapshot {ds}")
     return df
 
 
 # 3.  CLEAN CLICKSTREAM
 
-def clean_clickstream_table(spark):
-    print("Cleaning clickstream…")
+def clean_clickstream_table(spark, ds):
+    print(f"Cleaning clickstream snapshot {ds}…")
     df = spark.read.parquet("datamart/bronze/clickstream") \
+           .filter(col("snapshot_date") == ds) \
            .replace(["_", "NA", "na", "N/A"], None)
 
     for i in range(1, 21):
@@ -89,15 +91,15 @@ def clean_clickstream_table(spark):
     df = df.filter(col("Customer_ID").isNotNull() & col("snapshot_date").isNotNull())
     df.write.partitionBy("snapshot_date").mode("overwrite") \
       .parquet("datamart/silver/clickstream_clean")
-    print("✅  Saved Silver → clickstream_clean")
+    print(f"✅  Saved Silver → clickstream_clean snapshot {ds}")
     return df
 
 
 # 4.  CLEAN LOANS
 
-def clean_loans_table(spark):
-    print("Cleaning loans…")
-    df = spark.read.parquet("datamart/bronze/loans")
+def clean_loans_table(spark, ds):
+    print(f"Cleaning loans snapshot {ds}…")
+    df = spark.read.parquet("datamart/bronze/loans").filter(col("snapshot_date") == ds)
 
     schema_map = {
         "loan_id": StringType(), "Customer_ID": StringType(),
@@ -124,5 +126,5 @@ def clean_loans_table(spark):
 
     df.write.partitionBy("snapshot_date").mode("overwrite") \
       .parquet("datamart/silver/loans_clean")
-    print("✅  Saved Silver → loans_clean")
+    print(f"✅  Saved Silver → loans_clean snapshot {ds}")
     return df

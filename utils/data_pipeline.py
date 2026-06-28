@@ -20,6 +20,8 @@ def create_spark_session():
         .appName("LoanMLPipeline")
         .config("spark.driver.memory", "4g")
         .config("spark.sql.shuffle.partitions", "8")
+        # overwrite only the snapshot partition a task writes, keep the rest
+        .config("spark.sql.sources.partitionOverwriteMode", "dynamic")
         .getOrCreate()
     )
     spark.sparkContext.setLogLevel("ERROR")
@@ -33,49 +35,49 @@ def datamart_is_built() -> bool:
     )
 
 
-def build_datamart(force: bool = False):
-    """Run the full upstream datamart pipeline: bronze -> silver -> gold.
-
-    The upstream pipeline is a full refresh over all snapshots (not
-    incremental), so we build it once and skip on subsequent DAG runs
-    unless force=True or the gold stores are missing.
-    """
-    if datamart_is_built() and not force:
-        print("Datamart gold stores already built - skipping rebuild.")
-        return
-
+def _run_with_spark(fn):
+    """chdir into PROJECT_ROOT, run fn(spark), always stop the session."""
     os.chdir(PROJECT_ROOT)
-
-    from utils.bronze_processing import ingest_bronze_tables
-    from utils.silver_processing import (
-        clean_financials_table,
-        clean_attributes_table,
-        clean_clickstream_table,
-        clean_loans_table,
-    )
-    from utils.gold_processing import build_label_store, build_feature_store
-
     spark = create_spark_session()
     try:
-        for layer in ["datamart/bronze", "datamart/silver", "datamart/gold"]:
-            os.makedirs(layer, exist_ok=True)
-
-        ingest_bronze_tables(spark)
-        print("Bronze complete")
-
-        clean_financials_table(spark)
-        clean_attributes_table(spark)
-        clean_clickstream_table(spark)
-        clean_loans_table(spark)
-        print("Silver complete")
-
-        build_label_store(spark, dpd_cutoff=30, mob_cutoff=6)
-        build_feature_store(spark, dpd_cutoff=30, mob_cutoff=6)
-        print("Gold complete")
+        fn(spark)
     finally:
         spark.stop()
 
 
-if __name__ == "__main__":
-    import sys
-    build_datamart(force="--force" in sys.argv)
+# --- Per-source ETL tasks (one Airflow node each) ----------------------------
+# The datamart is rebuilt every monthly run (full refresh over all snapshots).
+
+def check_source(name: str):
+    """Dependency check: fail the run if the raw CSV is missing from data/."""
+    from utils.bronze_processing import BRONZE_SOURCES
+    path = os.path.join(PROJECT_ROOT, BRONZE_SOURCES[name])
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Required source CSV not found: {path}")
+    print(f"✅ Source present: {BRONZE_SOURCES[name]}")
+
+
+def run_bronze(name: str, ds: str):
+    from utils.bronze_processing import ingest_bronze
+    _run_with_spark(lambda spark: ingest_bronze(spark, name, ds))
+
+
+def run_silver(name: str, ds: str):
+    from utils import silver_processing
+    cleaner = {"financials": silver_processing.clean_financials_table,
+               "attributes": silver_processing.clean_attributes_table,
+               "clickstream": silver_processing.clean_clickstream_table,
+               "loans": silver_processing.clean_loans_table}[name]
+    _run_with_spark(lambda spark: cleaner(spark, ds))
+
+
+def run_gold_label_store(ds: str):
+    from utils.gold_processing import build_label_store
+    _run_with_spark(lambda spark: build_label_store(spark, ds, dpd_cutoff=30, mob_cutoff=6))
+
+
+def run_gold_feature_store():
+    # the feature store is recomputed from the accumulated silver each month so
+    # its cross-snapshot joins and categorical encoders stay consistent
+    from utils.gold_processing import build_feature_store
+    _run_with_spark(build_feature_store)

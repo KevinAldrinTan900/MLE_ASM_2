@@ -1,0 +1,7 @@
+# Generated datamart and model artefacts (rebuilt by running the pipeline)
+datamart/
+
+# Python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/

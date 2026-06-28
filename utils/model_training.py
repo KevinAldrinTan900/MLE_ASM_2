@@ -1,7 +1,13 @@
 # utils/model_training.py
 #
-# Trains candidate models on matured-label data, selects the best by
-# out-of-time (OOT) AUC, and registers the winning artefact in the model bank.
+# Trains candidate models on matured-label data as independent tasks, then
+# selects the best by out-of-time (OOT) AUC and registers the winning artefact
+# in the model bank.
+#
+# Split into one node per model (train_xgboost, train_logreg) plus a separate
+# model_selection node:
+#   train_<model>  -> fit + evaluate, save candidate artefact + metrics
+#   select_model   -> compare candidate OOT AUCs, promote the champion
 #
 # Temporal design (no leakage):
 #   - Model is trained/deployed at TRAIN-RUN date D (e.g. 2024-01-01).
@@ -13,11 +19,11 @@
 
 import json
 import os
-from datetime import date
+import shutil
 
 import joblib
 import numpy as np
-from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
+from dateutil.relativedelta import relativedelta
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
@@ -27,110 +33,168 @@ from sklearn.preprocessing import StandardScaler
 
 from utils import ml_utils
 
-TRAIN_WINDOW = (date(2023, 1, 1), date(2023, 5, 1))
-OOT_WINDOW = (date(2023, 6, 1), date(2023, 7, 1))
 RANDOM_STATE = 42
 
+# rolling-window sizes (months); the windows slide forward each monthly retrain
+TRAIN_MONTHS = 5
+OOT_MONTHS = 2
 
-def _make_candidates():
-    def with_prep(model, scale=True):
-        steps = [("imputer", SimpleImputer(strategy="median"))]
-        if scale:
-            steps.append(("scaler", StandardScaler()))
-        steps.append(("model", model))
-        return Pipeline(steps)
-
-    return {
-        "logistic_regression": with_prep(
-            LogisticRegression(max_iter=2000, random_state=RANDOM_STATE)
-        ),
-        "random_forest": with_prep(
-            RandomForestClassifier(
-                n_estimators=300, min_samples_leaf=5, n_jobs=-1, random_state=RANDOM_STATE
-            ),
-            scale=False,
-        ),
-        "hist_gradient_boosting": with_prep(
-            HistGradientBoostingClassifier(random_state=RANDOM_STATE), scale=False
-        ),
-    }
+# the two candidate models, one Airflow node each
+CANDIDATE_MODELS = ["xgboost", "logreg"]
 
 
-def train_and_select(deployment_date) -> str:
-    deployment_date = ml_utils.parse_date(deployment_date)
-    print(f"Training model for deployment at {deployment_date}")
+def _windows(deployment_date):
+    """Rolling train/OOT feature windows for a given deployment date.
 
+    A label for feature snapshot fd matures at fd + LABEL_MOB_MONTHS, so the
+    most recent fully-matured feature month at deployment D is D - 6 months.
+    The OOT window is the latest matured months; the train window precedes it.
+    For D = 2024-01-01 this gives train 2023-01..05 / OOT 2023-06..07; each
+    later monthly retrain slides both windows forward by a month.
+    """
+    oot_end = deployment_date - relativedelta(months=ml_utils.LABEL_MOB_MONTHS)
+    oot_start = oot_end - relativedelta(months=OOT_MONTHS - 1)
+    train_end = oot_start - relativedelta(months=1)
+    train_start = train_end - relativedelta(months=TRAIN_MONTHS - 1)
+    return (train_start, train_end), (oot_start, oot_end)
+
+
+def _make_pipeline(name):
+    """Fresh sklearn Pipeline for a candidate model."""
+    if name == "logreg":
+        return Pipeline([
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler()),
+            ("model", LogisticRegression(max_iter=2000, random_state=RANDOM_STATE)),
+        ])
+    if name == "xgboost":
+        from xgboost import XGBClassifier
+        return Pipeline([
+            ("imputer", SimpleImputer(strategy="median")),
+            ("model", XGBClassifier(
+                n_estimators=300, max_depth=5, learning_rate=0.1,
+                subsample=0.9, colsample_bytree=0.9, eval_metric="logloss",
+                n_jobs=-1, random_state=RANDOM_STATE,
+            )),
+        ])
+    raise ValueError(f"Unknown candidate model: {name}")
+
+
+def _version(deployment_date) -> str:
+    return f"credit_model_{ml_utils.parse_date(deployment_date).isoformat()}"
+
+
+def _candidate_dir(deployment_date, name) -> str:
+    return os.path.join(ml_utils.MODEL_BANK, _version(deployment_date), "candidates", name)
+
+
+def _prepare(deployment_date):
+    """Load gold stores and build the train/test/OOT splits (deterministic)."""
+    train_w, oot_w = _windows(deployment_date)
     features = ml_utils.load_feature_store()
     labels = ml_utils.load_label_store()
     df = ml_utils.join_labels(features, labels)
 
-    train_df = df[df["feature_snapshot_date"].between(*TRAIN_WINDOW)]
-    oot_df = df[df["feature_snapshot_date"].between(*OOT_WINDOW)]
+    train_df = df[df["feature_snapshot_date"].between(*train_w)]
+    oot_df = df[df["feature_snapshot_date"].between(*oot_w)]
     feat_cols = ml_utils.feature_columns(df)
-    print(f"Train rows: {len(train_df)}, OOT rows: {len(oot_df)}, features: {len(feat_cols)}")
 
-    X_train_full, y_train_full = train_df[feat_cols].astype(float), train_df["label"].astype(int)
+    X_full, y_full = train_df[feat_cols].astype(float), train_df["label"].astype(int)
     X_oot, y_oot = oot_df[feat_cols].astype(float), oot_df["label"].astype(int)
     X_tr, X_te, y_tr, y_te = train_test_split(
-        X_train_full, y_train_full, test_size=0.2, stratify=y_train_full, random_state=RANDOM_STATE
+        X_full, y_full, test_size=0.2, stratify=y_full, random_state=RANDOM_STATE
     )
+    return {
+        "feat_cols": feat_cols, "n_train": len(train_df), "n_oot": len(oot_df),
+        "X_full": X_full, "y_full": y_full, "X_oot": X_oot, "y_oot": y_oot,
+        "X_tr": X_tr, "X_te": X_te, "y_tr": y_tr, "y_te": y_te,
+    }
 
-    results = {}
-    for name, pipe in _make_candidates().items():
-        pipe.fit(X_tr, y_tr)
-        results[name] = {
-            "train_auc": float(roc_auc_score(y_tr, pipe.predict_proba(X_tr)[:, 1])),
-            "test_auc": float(roc_auc_score(y_te, pipe.predict_proba(X_te)[:, 1])),
-            "oot_auc": float(roc_auc_score(y_oot, pipe.predict_proba(X_oot)[:, 1])),
-        }
-        print(f"  {name}: {results[name]}")
 
-    best_name = max(results, key=lambda k: results[k]["oot_auc"])
-    print(f"Selected model: {best_name} (OOT AUC {results[best_name]['oot_auc']:.4f})")
+def train_candidate(name, deployment_date) -> dict:
+    """Train one candidate model, evaluate, and persist its artefact + metrics."""
+    deployment_date = ml_utils.parse_date(deployment_date)
+    print(f"Training candidate '{name}' for deployment at {deployment_date}")
+    d = _prepare(deployment_date)
 
-    # refit the winner on the full train window (OOT stays untouched)
-    best_pipe = _make_candidates()[best_name]
-    best_pipe.fit(X_train_full, y_train_full)
+    pipe = _make_pipeline(name)
+    pipe.fit(d["X_tr"], d["y_tr"])
+    metrics = {
+        "model": name,
+        "train_auc": float(roc_auc_score(d["y_tr"], pipe.predict_proba(d["X_tr"])[:, 1])),
+        "test_auc": float(roc_auc_score(d["y_te"], pipe.predict_proba(d["X_te"])[:, 1])),
+        "oot_auc": float(roc_auc_score(d["y_oot"], pipe.predict_proba(d["X_oot"])[:, 1])),
+    }
+    print(f"  {name}: {metrics}")
+
+    # refit on the full train window (OOT stays untouched) for deployment
+    final = _make_pipeline(name)
+    final.fit(d["X_full"], d["y_full"])
 
     # PSI baseline: training-score distribution, decile bin edges
-    baseline_scores = best_pipe.predict_proba(X_train_full)[:, 1]
+    baseline_scores = final.predict_proba(d["X_full"])[:, 1]
     edges = np.unique(np.quantile(baseline_scores, np.linspace(0, 1, 11)))
     edges[0], edges[-1] = -np.inf, np.inf
 
-    version = f"credit_model_{deployment_date.isoformat()}"
-    model_dir = os.path.join(ml_utils.MODEL_BANK, version)
-    os.makedirs(model_dir, exist_ok=True)
-
+    cdir = _candidate_dir(deployment_date, name)
+    os.makedirs(cdir, exist_ok=True)
     joblib.dump(
         {
-            "pipeline": best_pipe,
-            "feature_cols": feat_cols,
+            "pipeline": final,
+            "feature_cols": d["feat_cols"],
             "baseline_scores": baseline_scores,
             "psi_bin_edges": edges,
         },
-        os.path.join(model_dir, "model.pkl"),
+        os.path.join(cdir, "model.pkl"),
+    )
+    with open(os.path.join(cdir, "metrics.json"), "w") as f:
+        json.dump({**metrics, "n_train": int(d["n_train"]), "n_oot": int(d["n_oot"]),
+                   "n_features": len(d["feat_cols"])}, f, indent=2)
+    print(f"Candidate artefact saved to {cdir}")
+    return metrics
+
+
+def select_model(deployment_date) -> str:
+    """Compare candidate OOT AUCs and promote the champion to the model bank."""
+    deployment_date = ml_utils.parse_date(deployment_date)
+    version = _version(deployment_date)
+    base = os.path.join(ml_utils.MODEL_BANK, version)
+
+    candidates = {}
+    for name in CANDIDATE_MODELS:
+        with open(os.path.join(_candidate_dir(deployment_date, name), "metrics.json")) as f:
+            candidates[name] = json.load(f)
+
+    best_name = max(candidates, key=lambda k: candidates[k]["oot_auc"])
+    print(f"Selected model: {best_name} (OOT AUC {candidates[best_name]['oot_auc']:.4f})")
+
+    # promote the champion artefact to the canonical model-bank location
+    shutil.copyfile(
+        os.path.join(_candidate_dir(deployment_date, best_name), "model.pkl"),
+        os.path.join(base, "model.pkl"),
     )
 
+    train_w, oot_w = _windows(deployment_date)
     metadata = {
         "model_version": version,
         "deployment_date": deployment_date.isoformat(),
         "selected_model": best_name,
         "label_definition": "30dpd_6mob",
-        "train_window": [d.isoformat() for d in TRAIN_WINDOW],
-        "oot_window": [d.isoformat() for d in OOT_WINDOW],
-        "n_train": int(len(train_df)),
-        "n_oot": int(len(oot_df)),
-        "n_features": len(feat_cols),
-        "candidate_metrics": results,
+        "train_window": [d.isoformat() for d in train_w],
+        "oot_window": [d.isoformat() for d in oot_w],
+        "n_features": candidates[best_name].get("n_features"),
+        "candidate_metrics": candidates,
         "selection_rule": "max OOT AUC",
     }
-    with open(os.path.join(model_dir, "metadata.json"), "w") as f:
+    with open(os.path.join(base, "metadata.json"), "w") as f:
         json.dump(metadata, f, indent=2)
-
-    print(f"Model artefact saved to {model_dir}")
-    return version
+    print(f"Champion registered at {base}")
+    return best_name
 
 
 if __name__ == "__main__":
     import sys
-    train_and_select(sys.argv[1] if len(sys.argv) > 1 else "2024-01-01")
+    ds = sys.argv[1] if len(sys.argv) > 1 else "2024-01-01"
+    for m in CANDIDATE_MODELS:
+        train_candidate(m, ds)
+    select_model(ds)

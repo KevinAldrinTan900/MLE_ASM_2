@@ -1,0 +1,9 @@
+{
+  "model": "xgboost",
+  "train_auc": 1.0,
+  "test_auc": 0.800964849067179,
+  "oot_auc": 0.8199661311945811,
+  "n_train": 2500,
+  "n_oot": 941,
+  "n_features": 72
+}

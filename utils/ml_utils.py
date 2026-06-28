@@ -65,7 +65,7 @@ def load_feature_store() -> pd.DataFrame:
 
 
 def load_label_store() -> pd.DataFrame:
-    df = pads.dataset(LABEL_STORE).to_table().to_pandas()
+    df = pads.dataset(LABEL_STORE, partitioning="hive").to_table().to_pandas()
     df["snapshot_date"] = pd.to_datetime(df["snapshot_date"]).dt.date
     # one label per customer per snapshot (defensive de-dup; takes worst case)
     df = (

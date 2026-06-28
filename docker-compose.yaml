@@ -7,6 +7,11 @@ x-airflow-common: &airflow-common
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
     AIRFLOW__WEBSERVER__WARN_DEPLOYMENT_EXPOSURE: 'false'
+    # shared across webserver + scheduler so the UI can fetch served task logs
+    # (otherwise each container gets a random key -> 403 Could not read served logs)
+    AIRFLOW__WEBSERVER__SECRET_KEY: cs611-assignment2-secret
+    # Grid view live-refresh poll interval (seconds)
+    AIRFLOW__WEBSERVER__AUTO_REFRESH_INTERVAL: '3'
     PROJECT_ROOT: /opt/airflow
     PYTHONPATH: /opt/airflow
   volumes:
@@ -15,7 +20,6 @@ x-airflow-common: &airflow-common
     - ./data:/opt/airflow/data
     - ./datamart:/opt/airflow/datamart
     - ./model_bank:/opt/airflow/model_bank
-    - ./logs:/opt/airflow/logs
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on: &airflow-common-depends-on
     postgres:
