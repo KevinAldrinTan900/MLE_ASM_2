@@ -24,7 +24,7 @@ from sklearn.metrics import (
 
 from utils import ml_utils
 
-VIZ_DIR = os.path.join(ml_utils.GOLD, "monitoring_viz")
+VIZ_BASE = os.path.join(ml_utils.GOLD, "monitoring_viz")
 
 # governance thresholds (see SOP in the deck)
 AUC_ALERT = 0.70
@@ -32,13 +32,18 @@ PSI_WATCH = 0.10
 PSI_ALERT = 0.25
 
 
-def run_monitoring(run_date) -> dict:
+def run_monitoring_for(model_name, run_date) -> dict:
+    """Monitor one model's stored predictions for the just-matured cohort.
+
+    Reads that model's per-model prediction folder and its own training
+    baseline, writes per-model metrics, and refreshes that model's charts.
+    """
     run_date = ml_utils.parse_date(run_date)
     cohort_date = run_date - relativedelta(months=ml_utils.LABEL_MOB_MONTHS)
-    print(f"Monitoring run {run_date}: evaluating cohort scored at {cohort_date}")
+    print(f"Monitoring '{model_name}' run {run_date}: cohort scored at {cohort_date}")
 
     pred_path = os.path.join(
-        ml_utils.PREDICTION_STORE, f"snapshot_date={cohort_date.isoformat()}"
+        ml_utils.PREDICTION_STORE, model_name, f"snapshot_date={cohort_date.isoformat()}"
     )
     preds = pd.read_parquet(os.path.join(pred_path, "predictions.parquet"))
 
@@ -52,7 +57,9 @@ def run_monitoring(run_date) -> dict:
     yhat = df["default_prediction"]
 
     version = df["model_version"].iloc[0]
-    artefact = joblib.load(os.path.join(ml_utils.MODEL_BANK, version, "model.pkl"))
+    artefact = joblib.load(
+        os.path.join(ml_utils.MODEL_BANK, version, "candidates", model_name, "model.pkl")
+    )
     psi_value = ml_utils.psi(
         artefact["baseline_scores"], p.values, artefact["psi_bin_edges"]
     )
@@ -62,6 +69,7 @@ def run_monitoring(run_date) -> dict:
         "cohort_snapshot_date": cohort_date.isoformat(),
         "monitored_at": run_date.isoformat(),
         "model_version": version,
+        "model_name": model_name,
         "n_scored": int(len(preds)),
         "n_labeled": int(len(df)),
         "auc": auc,
@@ -82,7 +90,7 @@ def run_monitoring(run_date) -> dict:
     print(row)
 
     part_dir = os.path.join(
-        ml_utils.MONITOR_STORE, f"cohort_snapshot_date={cohort_date.isoformat()}"
+        ml_utils.MONITOR_STORE, model_name, f"cohort_snapshot_date={cohort_date.isoformat()}"
     )
     os.makedirs(part_dir, exist_ok=True)
     pd.DataFrame([row]).drop(columns=["cohort_snapshot_date"]).to_parquet(
@@ -90,25 +98,28 @@ def run_monitoring(run_date) -> dict:
     )
     print(f"Wrote monitoring metrics to {part_dir}")
 
-    refresh_charts()
+    refresh_charts(model_name)
     return row
 
 
-def load_monitoring_table() -> pd.DataFrame:
-    df = pads.dataset(ml_utils.MONITOR_STORE, partitioning="hive").to_table().to_pandas()
+def load_monitoring_table(model_name) -> pd.DataFrame:
+    df = pads.dataset(
+        os.path.join(ml_utils.MONITOR_STORE, model_name), partitioning="hive"
+    ).to_table().to_pandas()
     df["cohort_snapshot_date"] = df["cohort_snapshot_date"].astype(str)
     return df.sort_values("cohort_snapshot_date")
 
 
-def refresh_charts():
-    """Regenerate the performance & stability charts from the full gold
+def refresh_charts(model_name):
+    """Regenerate one model's performance & stability charts from its full gold
     monitoring table (called after every monitoring run, so the charts always
     reflect the latest state)."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    df = load_monitoring_table()
+    df = load_monitoring_table(model_name)
+    VIZ_DIR = os.path.join(VIZ_BASE, model_name)
     os.makedirs(VIZ_DIR, exist_ok=True)
     x = df["cohort_snapshot_date"]
 
@@ -117,7 +128,7 @@ def refresh_charts():
     ax.plot(x, df["auc"], marker="o", label="AUC", color="#1f6feb")
     ax.plot(x, df["gini"], marker="s", label="Gini", color="#8957e5")
     ax.axhline(AUC_ALERT, color="#d1242f", ls="--", lw=1, label=f"AUC alert ({AUC_ALERT})")
-    ax.set_title("Model performance by monthly application cohort")
+    ax.set_title(f"[{model_name}] Model performance by monthly application cohort")
     ax.set_xlabel("Cohort snapshot (application month)")
     ax.set_ylim(0, 1)
     ax.legend(loc="lower left")
@@ -174,4 +185,5 @@ def refresh_charts():
 
 if __name__ == "__main__":
     import sys
-    run_monitoring(sys.argv[1])
+    for m in ("xgboost", "logreg"):
+        run_monitoring_for(m, sys.argv[1])

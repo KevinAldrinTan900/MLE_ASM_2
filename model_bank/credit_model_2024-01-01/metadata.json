@@ -1,7 +1,7 @@
 {
   "model_version": "credit_model_2024-01-01",
   "deployment_date": "2024-01-01",
-  "selected_model": "logistic_regression",
+  "selected_model": "xgboost",
   "label_definition": "30dpd_6mob",
   "train_window": [
     "2023-01-01",
@@ -11,24 +11,25 @@
     "2023-06-01",
     "2023-07-01"
   ],
-  "n_train": 2568,
-  "n_oot": 988,
   "n_features": 72,
   "candidate_metrics": {
-    "logistic_regression": {
-      "train_auc": 0.8059660330592939,
-      "test_auc": 0.7788096164896474,
-      "oot_auc": 0.797488664463028
-    },
-    "random_forest": {
-      "train_auc": 0.9874977454283105,
-      "test_auc": 0.7783647518953084,
-      "oot_auc": 0.7843937709129868
-    },
-    "hist_gradient_boosting": {
+    "xgboost": {
+      "model": "xgboost",
       "train_auc": 1.0,
-      "test_auc": 0.7909692487349163,
-      "oot_auc": 0.7849624518271414
+      "test_auc": 0.7973085692042484,
+      "oot_auc": 0.7963411476183948,
+      "n_train": 2568,
+      "n_oot": 988,
+      "n_features": 72
+    },
+    "logreg": {
+      "model": "logreg",
+      "train_auc": 0.8045964171219446,
+      "test_auc": 0.7746575469424828,
+      "oot_auc": 0.7913042595215971,
+      "n_train": 2568,
+      "n_oot": 988,
+      "n_features": 72
     }
   },
   "selection_rule": "max OOT AUC"

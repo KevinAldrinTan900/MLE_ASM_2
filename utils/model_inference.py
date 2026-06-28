@@ -33,10 +33,27 @@ def get_active_model(as_of_date):
     return version, artefact, meta
 
 
-def run_inference(snapshot_date) -> str:
+def _write_predictions(out: pd.DataFrame, part_dir: str):
+    os.makedirs(part_dir, exist_ok=True)
+    out.drop(columns=["snapshot_date"]).to_parquet(
+        os.path.join(part_dir, "predictions.parquet"), index=False
+    )
+    print(f"Wrote {len(out)} predictions to {part_dir}")
+
+
+def run_inference_for(model_name, snapshot_date) -> str:
+    """Score one snapshot with a specific candidate model (one Airflow node).
+
+    Predictions go to a per-model folder. When this model is the selected
+    champion, the same predictions are also written to the canonical
+    prediction store that monitoring reads.
+    """
     snapshot_date = ml_utils.parse_date(snapshot_date)
-    version, artefact, _ = get_active_model(snapshot_date)
-    print(f"Scoring snapshot {snapshot_date} with {version}")
+    version, _, meta = get_active_model(snapshot_date)  # resolve active version
+
+    cand_path = os.path.join(ml_utils.MODEL_BANK, version, "candidates", model_name, "model.pkl")
+    artefact = joblib.load(cand_path)
+    print(f"Scoring snapshot {snapshot_date} with {version} / {model_name}")
 
     features = ml_utils.load_feature_store()
     snap = features[features["feature_snapshot_date"] == snapshot_date].copy()
@@ -52,22 +69,25 @@ def run_inference(snapshot_date) -> str:
             "Customer_ID": snap["Customer_ID"].values,
             "snapshot_date": snapshot_date.isoformat(),
             "model_version": version,
+            "model_name": model_name,
             "default_probability": probs,
             "default_prediction": (probs >= 0.5).astype(int),
         }
     )
 
-    part_dir = os.path.join(
-        ml_utils.PREDICTION_STORE, f"snapshot_date={snapshot_date.isoformat()}"
-    )
-    os.makedirs(part_dir, exist_ok=True)
-    out.drop(columns=["snapshot_date"]).to_parquet(
-        os.path.join(part_dir, "predictions.parquet"), index=False
-    )
-    print(f"Wrote {len(out)} predictions to {part_dir}")
-    return part_dir
+    part = f"snapshot_date={snapshot_date.isoformat()}"
+    _write_predictions(out, os.path.join(ml_utils.PREDICTION_STORE, model_name, part))
+
+    # the champion also feeds the canonical store consumed by monitoring
+    if model_name == meta["selected_model"]:
+        _write_predictions(out.drop(columns=["model_name"]),
+                           os.path.join(ml_utils.PREDICTION_STORE, part))
+        print(f"'{model_name}' is the champion - canonical predictions updated")
+
+    return os.path.join(ml_utils.PREDICTION_STORE, model_name, part)
 
 
 if __name__ == "__main__":
     import sys
-    run_inference(sys.argv[1])
+    for m in ("xgboost", "logreg"):
+        run_inference_for(m, sys.argv[1])

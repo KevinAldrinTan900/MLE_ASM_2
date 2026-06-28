@@ -1,0 +1,36 @@
+{
+  "model_version": "credit_model_2024-04-01",
+  "deployment_date": "2024-04-01",
+  "selected_model": "xgboost",
+  "label_definition": "30dpd_6mob",
+  "train_window": [
+    "2023-04-01",
+    "2023-08-01"
+  ],
+  "oot_window": [
+    "2023-09-01",
+    "2023-10-01"
+  ],
+  "n_features": 72,
+  "candidate_metrics": {
+    "xgboost": {
+      "model": "xgboost",
+      "train_auc": 1.0,
+      "test_auc": 0.800964849067179,
+      "oot_auc": 0.8199661311945811,
+      "n_train": 2500,
+      "n_oot": 941,
+      "n_features": 72
+    },
+    "logreg": {
+      "model": "logreg",
+      "train_auc": 0.8254827209131628,
+      "test_auc": 0.8008647609896709,
+      "oot_auc": 0.8070007291201164,
+      "n_train": 2500,
+      "n_oot": 941,
+      "n_features": 72
+    }
+  },
+  "selection_rule": "max OOT AUC"
+}

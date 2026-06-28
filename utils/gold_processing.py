@@ -9,9 +9,9 @@ from pyspark.sql.types import IntegerType, StringType
 from pyspark.ml.feature import StringIndexer, OneHotEncoder
 from pyspark.ml import Pipeline
 
-def build_label_store(spark, dpd_cutoff=30, mob_cutoff=6) -> DataFrame:
-    print("📌 Building label store…")
-    loans = spark.read.parquet("datamart/silver/loans_clean")
+def build_label_store(spark, ds, dpd_cutoff=30, mob_cutoff=6) -> DataFrame:
+    print(f"📌 Building label store snapshot {ds}…")
+    loans = spark.read.parquet("datamart/silver/loans_clean").filter(col("snapshot_date") == ds)
 
     label_df = (
         loans
@@ -23,8 +23,8 @@ def build_label_store(spark, dpd_cutoff=30, mob_cutoff=6) -> DataFrame:
     )
 
     os.makedirs("datamart/gold/label_store", exist_ok=True)
-    label_df.write.mode("overwrite").parquet("datamart/gold/label_store")
-    print("✅ Saved label store to datamart/gold/label_store")
+    label_df.write.partitionBy("snapshot_date").mode("overwrite").parquet("datamart/gold/label_store")
+    print(f"✅ Saved label store snapshot {ds} to datamart/gold/label_store")
 
     return label_df
 
@@ -150,29 +150,28 @@ def process_clickstream(df: DataFrame) -> DataFrame:
         df = cap_by_quantile(df, f"fe_{i}")
     return df
 
-def build_feature_store(spark, dpd_cutoff=30, mob_cutoff=6) -> DataFrame:
-    print("📌 Building unified gold-ML feature store…")
+def build_feature_store(spark) -> DataFrame:
+    print("📌 Building gold feature store (features per snapshot, no labels)…")
 
-    # read silver tables
-    fin = spark.read.parquet("datamart/silver/financials_clean")
-    att = spark.read.parquet("datamart/silver/attributes_clean")
-    clk = spark.read.parquet("datamart/silver/clickstream_clean")
-    lms = spark.read.parquet("datamart/silver/loans_clean")
+    # Features are stored per snapshot for ALL customers, independent of label
+    # maturity — so the current month's cohort can be scored at inference time.
+    # The label is joined in later (ml_utils.join_labels) only for training.
+    fin = spark.read.parquet("datamart/silver/financials_clean") \
+               .withColumnRenamed("snapshot_date", "feature_snapshot_date")
+    att = spark.read.parquet("datamart/silver/attributes_clean") \
+               .withColumnRenamed("snapshot_date", "feature_snapshot_date")
+    clk = spark.read.parquet("datamart/silver/clickstream_clean") \
+               .withColumnRenamed("snapshot_date", "feature_snapshot_date")
 
-    # multi-snapshot + per-source processing
-    fin_all = process_financials(multi_snapshot_join(fin, lms, dpd_cutoff, mob_cutoff))
-    att_all = process_attributes(multi_snapshot_join(att, lms, dpd_cutoff, mob_cutoff))
-    clk_all = process_clickstream(multi_snapshot_join(clk, lms, dpd_cutoff, mob_cutoff))
+    fin_all = process_financials(fin)
+    att_all = process_attributes(att)
+    clk_all = process_clickstream(clk)
 
-    # join all feature slices
+    # join the three feature sources on customer + feature snapshot
     feat = (
         fin_all
-        .join(att_all,
-              on=["Customer_ID", "feature_snapshot_date", "label_snapshot_date", "label"],
-              how="inner")
-        .join(clk_all,
-              on=["Customer_ID", "feature_snapshot_date", "label_snapshot_date", "label"],
-              how="inner")
+        .join(att_all, on=["Customer_ID", "feature_snapshot_date"], how="inner")
+        .join(clk_all, on=["Customer_ID", "feature_snapshot_date"], how="inner")
         .cache()
     )
 
